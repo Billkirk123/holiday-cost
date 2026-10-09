@@ -44,16 +44,24 @@ database data.
 - `npm run dev` — start the API and web app together
 - `npm run build` — build all workspaces
 - `npm run typecheck` — type-check all workspaces
+- `npm test` — run API domain unit tests
 
 ## Repository layout
 
 ```text
 apps/
   api/       Node.js + Express API
+    src/
+      routes/      HTTP route handlers
+      middleware/  Request authentication and error handling
+      services/    Session and currency-provider logic
+      db/          PostgreSQL connection and migrations
+      domain.ts    Pure validation and cost-calculation helpers
+      app.ts       Express app composition
+      server.ts    Startup and migration bootstrap
   web/       React + Vite frontend
 packages/
   shared/    Types shared between the API and frontend
-apps/api/migrations/
-             PostgreSQL schema
+apps/api/migrations/ PostgreSQL schema
 docker-compose.yml
 ```
