@@ -46,6 +46,9 @@ database data.
 - `npm run typecheck` — type-check all workspaces
 - `npm test` — run API domain unit tests
 
+GitHub Actions runs the tests, type-check, and build on every push and pull
+request.
+
 ## Repository layout
 
 ```text
