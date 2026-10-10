@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AuthResponse,
   CurrencyOption,
@@ -30,28 +30,40 @@ function App() {
   const [showTripForm, setShowTripForm] = useState(false);
   const [pageError, setPageError] = useState("");
   const [busy, setBusy] = useState(false);
+  const authRequestId = useRef(0);
+  const tripsRequestId = useRef(0);
+  const currencyRequestId = useRef(0);
 
   useEffect(() => {
-    let active = true;
-    void apiRequest<{ user: User }>("/api/auth/me")
+    const requestId = ++authRequestId.current;
+    const controller = new AbortController();
+
+    void apiRequest<{ user: User }>("/api/auth/me", { signal: controller.signal })
       .then(({ user: currentUser }) => {
-        if (active) setUser(currentUser);
+        if (requestId !== authRequestId.current) return;
+        setUser(currentUser);
       })
       .catch((error: unknown) => {
-        if (active && error instanceof Error && !error.message.includes("sign in")) {
+        if (requestId !== authRequestId.current) return;
+        if (error instanceof Error && !error.message.includes("sign in")) {
           setPageError(error.message);
         }
       })
       .finally(() => {
-        if (active) setAuthReady(true);
+        if (requestId === authRequestId.current) setAuthReady(true);
       });
+
     return () => {
-      active = false;
+      controller.abort();
+      authRequestId.current += 1;
     };
   }, []);
 
-  const loadTrips = useCallback(async () => {
-    const result = await apiRequest<{ trips: Trip[] }>("/api/trips");
+  const loadTrips = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++tripsRequestId.current;
+    const result = await apiRequest<{ trips: Trip[] }>("/api/trips", { signal });
+    if (signal?.aborted) return;
+    if (requestId !== tripsRequestId.current) return;
     setTrips(result.trips);
   }, []);
 
@@ -62,18 +74,21 @@ function App() {
       return;
     }
 
-    let active = true;
-    void apiRequest<{ currencies: CurrencyOption[] }>("/api/currency/currencies")
+    const requestId = ++currencyRequestId.current;
+    const controller = new AbortController();
+    void apiRequest<{ currencies: CurrencyOption[] }>("/api/currency/currencies", { signal: controller.signal })
       .then(({ currencies: options }) => {
-        if (active) setCurrencies(options);
+        if (requestId !== currencyRequestId.current) return;
+        setCurrencies(options);
       })
       .catch((error: unknown) => {
-        if (active) {
-          setCurrencyListError(errorMessage(error, "Could not load currency options."));
-        }
+        if (requestId !== currencyRequestId.current) return;
+        setCurrencyListError(errorMessage(error, "Could not load currency options."));
       });
+
     return () => {
-      active = false;
+      controller.abort();
+      currencyRequestId.current += 1;
     };
   }, [user]);
 
@@ -84,9 +99,16 @@ function App() {
       setExpenses([]);
       return;
     }
-    void loadTrips().catch((error: unknown) => {
+
+    const controller = new AbortController();
+    void loadTrips(controller.signal).catch((error: unknown) => {
+      if (controller.signal.aborted) return;
       setPageError(errorMessage(error, "Could not load trips."));
     });
+
+    return () => {
+      controller.abort();
+    };
   }, [user, loadTrips]);
 
   async function handleAuth(

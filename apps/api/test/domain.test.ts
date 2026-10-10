@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   convertAmountCents,
+  isExpenseCategory,
+  isUuid,
   parseAmountCents,
+  parseDate,
   splitPerPersonCents,
+  stringField,
 } from "../src/domain.js";
 
 test("parseAmountCents accepts decimal strings and numeric amounts", () => {
@@ -43,4 +47,26 @@ test("splitPerPersonCents rejects invalid totals and traveler counts", () => {
   assert.throws(() => splitPerPersonCents(-1, 2), RangeError);
   assert.throws(() => splitPerPersonCents(100, 0), RangeError);
   assert.throws(() => splitPerPersonCents(100, 1.5), RangeError);
+});
+
+test("stringField trims and enforces length limits", () => {
+  assert.equal(stringField("  hello world  ", 20), "hello world");
+  assert.equal(stringField("a", 0), undefined);
+  assert.equal(stringField("", 10), undefined);
+  assert.equal(stringField("valid value", 5), undefined);
+});
+
+test("parseDate accepts ISO dates and rejects malformed values", () => {
+  assert.equal(parseDate("2025-02-28"), "2025-02-28");
+  assert.equal(parseDate(""), null);
+  assert.equal(parseDate(null), null);
+  assert.equal(parseDate("2025-02-30"), undefined);
+  assert.equal(parseDate("not-a-date"), undefined);
+});
+
+test("isExpenseCategory and isUuid validate values as expected", () => {
+  assert.equal(isExpenseCategory("transport"), true);
+  assert.equal(isExpenseCategory("invalid"), false);
+  assert.equal(isUuid("123e4567-e89b-42d3-a456-426614174000"), true);
+  assert.equal(isUuid("not-a-uuid"), false);
 });

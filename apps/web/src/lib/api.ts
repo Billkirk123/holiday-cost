@@ -1,9 +1,14 @@
 export async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response;
   try {
+    const headers = new Headers(options?.headers ?? {});
+    if (options?.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
     response = await fetch(path, {
       ...options,
-      headers: options?.body ? { "Content-Type": "application/json" } : undefined,
+      headers,
     });
   } catch {
     throw new Error("Could not reach the API. Check that the API and database are running.");
