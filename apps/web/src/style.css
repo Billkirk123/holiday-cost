@@ -686,6 +686,62 @@ p {
   line-height: 1.5;
 }
 
+.location-autocomplete {
+  position: relative;
+}
+
+.location-suggestions {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid #dfe4dd;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 8px 22px rgb(24 56 47 / 12%);
+}
+
+.location-suggestion {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 0;
+  background: white;
+  color: #243a30;
+  text-align: left;
+}
+
+.location-suggestion + .location-suggestion {
+  border-top: 1px solid #eff1ed;
+}
+
+.location-suggestion:hover,
+.location-suggestion:focus-visible {
+  outline: none;
+  background: #f3f6f2;
+}
+
+.location-suggestion strong {
+  font-size: 11px;
+}
+
+.location-suggestion span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.form-stack .helper-copy a {
+  color: #557565;
+}
+
+.form-stack .location-error {
+  color: #9b4439;
+}
+
 .form-stack label > select {
   appearance: auto;
 }

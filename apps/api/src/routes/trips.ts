@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Expense, ExpenseCategory, ExchangeRate, Trip } from "@holiday-cost/shared";
+import type { Expense, ExpenseCategory, ExchangeRate, LocationSuggestion, Trip } from "@holiday-cost/shared";
 import { convertAmountCents, isExpenseCategory, isUuid, parseAmountCents, parseDate, splitPerPersonCents, stringField } from "../domain.js";
 import { pool } from "../db/pool.js";
 import { asyncHandler } from "../middleware/async-handler.js";
@@ -10,6 +10,7 @@ interface TripRow {
   id: string;
   name: string;
   destination: string;
+  location_id: string | null;
   start_date: string | null;
   end_date: string | null;
   travelers: number;
@@ -37,6 +38,7 @@ function tripFromRow(row: TripRow): Trip {
     id: row.id,
     name: row.name,
     destination: row.destination,
+    locationId: row.location_id,
     startDate: row.start_date,
     endDate: row.end_date,
     travelers: row.travelers,
@@ -62,7 +64,38 @@ function expenseFromRow(row: ExpenseRow): Expense {
   };
 }
 
-const tripSelect = `SELECT trips.id, trips.name, trips.destination,
+function locationFromRequest(value: unknown): LocationSuggestion | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return undefined;
+
+  const fields = value as Record<string, unknown>;
+  const providerPlaceId = stringField(fields.providerPlaceId, 255);
+  const formatted = stringField(fields.formatted, 120);
+  const city = stringField(fields.city, 120);
+  const country = stringField(fields.country, 120);
+  const countryCode = fields.countryCode === null
+    ? null
+    : typeof fields.countryCode === "string"
+      ? fields.countryCode.toUpperCase()
+      : undefined;
+  const latitude = fields.latitude;
+  const longitude = fields.longitude;
+
+  if (
+    !providerPlaceId || !formatted || !city || !country ||
+    (countryCode !== null && (countryCode === undefined || !/^[A-Z]{2}$/.test(countryCode))) ||
+    typeof latitude !== "number" || !Number.isFinite(latitude) ||
+    latitude < -90 || latitude > 90 ||
+    typeof longitude !== "number" || !Number.isFinite(longitude) ||
+    longitude < -180 || longitude > 180
+  ) {
+    return undefined;
+  }
+
+  return { providerPlaceId, formatted, city, country, countryCode, latitude, longitude };
+}
+
+const tripSelect = `SELECT trips.id, trips.name, trips.destination, trips.location_id,
        trips.start_date::text, trips.end_date::text, trips.travelers, trips.currency,
        COUNT(expenses.id)::int AS expense_count,
        COALESCE(SUM(expenses.amount_cents), 0)::text AS total_cents
@@ -87,6 +120,7 @@ tripsRouter.get("/", asyncHandler(async (request, response) => {
 tripsRouter.post("/", asyncHandler(async (request, response) => {
   const name = stringField(request.body?.name, 100);
   const destination = stringField(request.body?.destination, 120);
+  const location = locationFromRequest(request.body?.location);
   const startDate = parseDate(request.body?.startDate);
   const endDate = parseDate(request.body?.endDate);
   const travelers = Number(request.body?.travelers);
@@ -95,7 +129,9 @@ tripsRouter.post("/", asyncHandler(async (request, response) => {
     : "";
 
   if (
-    !name || !destination || startDate === undefined || endDate === undefined ||
+    !name || !destination || location === undefined ||
+    (location && location.formatted !== destination) ||
+    startDate === undefined || endDate === undefined ||
     !Number.isInteger(travelers) || travelers < 1 || travelers > 100 ||
     !/^[A-Z]{3}$/.test(currency) ||
     (startDate && endDate && endDate < startDate)
@@ -105,11 +141,41 @@ tripsRouter.post("/", asyncHandler(async (request, response) => {
   }
 
   const result = await pool.query<TripRow>(
-    `INSERT INTO trips (user_id, name, destination, start_date, end_date, travelers, currency)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, name, destination, start_date::text, end_date::text, travelers, currency,
-       0::int AS expense_count, '0'::text AS total_cents`,
-    [request.userId, name, destination, startDate, endDate, travelers, currency],
+    `WITH saved_location AS (
+       INSERT INTO locations (
+         provider, provider_place_id, city, country, country_code, latitude, longitude
+       )
+       SELECT 'geoapify', $8, $9, $10, $11, $12, $13
+       WHERE $8::text IS NOT NULL
+       ON CONFLICT (provider_place_id) DO UPDATE SET
+         city = EXCLUDED.city,
+         country = EXCLUDED.country,
+         country_code = EXCLUDED.country_code,
+         latitude = EXCLUDED.latitude,
+         longitude = EXCLUDED.longitude
+       RETURNING id
+     )
+     INSERT INTO trips (
+       user_id, name, destination, location_id, start_date, end_date, travelers, currency
+     )
+     VALUES ($1, $2, $3, (SELECT id FROM saved_location), $4, $5, $6, $7)
+     RETURNING id, name, destination, location_id, start_date::text, end_date::text,
+       travelers, currency, 0::int AS expense_count, '0'::text AS total_cents`,
+    [
+      request.userId,
+      name,
+      destination,
+      startDate,
+      endDate,
+      travelers,
+      currency,
+      location?.providerPlaceId ?? null,
+      location?.city ?? null,
+      location?.country ?? null,
+      location?.countryCode ?? null,
+      location?.latitude ?? null,
+      location?.longitude ?? null,
+    ],
   );
   response.status(201).json({ trip: tripFromRow(result.rows[0]) });
 }));

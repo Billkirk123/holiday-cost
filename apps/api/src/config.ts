@@ -20,6 +20,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 export const config = {
   databaseUrl,
   port,
+  geoapifyApiKey: process.env.GEOAPIFY_API_KEY?.trim() || undefined,
   isProduction: process.env.NODE_ENV === "production",
   sessionCookieName: "holiday_cost_session",
   sessionDurationMs: 30 * 24 * 60 * 60 * 1000,

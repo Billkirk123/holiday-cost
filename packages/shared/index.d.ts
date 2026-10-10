@@ -37,6 +37,7 @@ export interface Trip {
   id: string;
   name: string;
   destination: string;
+  locationId: string | null;
   startDate: string | null;
   endDate: string | null;
   travelers: number;
@@ -44,6 +45,16 @@ export interface Trip {
   expenseCount: number;
   totalCents: number;
   perPersonCents: number;
+}
+
+export interface LocationSuggestion {
+  providerPlaceId: string;
+  formatted: string;
+  city: string;
+  country: string;
+  countryCode: string | null;
+  latitude: number;
+  longitude: number;
 }
 
 export interface CurrencyOption {

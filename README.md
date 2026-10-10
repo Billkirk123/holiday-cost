@@ -35,6 +35,11 @@ API starts. The trip detail view can also display all amounts in another
 currency. These are reference-rate estimates, not live trading rates. Scraped
 prices are not part of V1.
 
+To enable destination autocomplete, add your Geoapify key as
+`GEOAPIFY_API_KEY` in `apps/api/.env`. The key stays on the API server. Users
+can still enter destinations manually; selecting a Geoapify city suggestion
+saves its place ID and location details with the trip.
+
 To stop the database, run `docker compose down`. Its data is kept in a named
 volume; use `docker compose down -v` only when you want to delete that local
 database data.
